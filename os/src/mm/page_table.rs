@@ -70,6 +70,11 @@ impl PageTableEntry {
     pub fn executable(&self) -> bool {
         (self.flags() & PTEFlags::X) != PTEFlags::empty()
     }
+    // ** for chapter 4 exercises
+    /// The page pointered by page table entry is accessible in U mode?
+    pub fn user_mode_accessible(&self) -> bool {
+        (self.flags() & PTEFlags::U) != PTEFlags::empty()
+    }
 }
 
 /// page table structure
@@ -122,13 +127,29 @@ impl PageTable {
         let mut result: Option<&mut PageTableEntry> = None;
         for (i, idx) in idxs.iter().enumerate() {
             let pte = &mut ppn.get_pte_array()[*idx];
+            // ** for chapter 4 exercises
+            /*
+                Fix a potential security vulnerability：
+                the original code will return an invalid PTE if given a unmapped VPN.
+            */
+            if !pte.is_valid() {
+                return None;
+            }
             if i == 2 {
                 result = Some(pte);
                 break;
             }
-            if !pte.is_valid() {
-                return None;
-            }
+            // Original Code
+            /*
+                if i == 2 {
+                    result = Some(pte);
+                    break;
+                }
+                if i == 2 {
+                    result = Some(pte);
+                    break;
+                }
+            */
             ppn = pte.ppn();
         }
         result

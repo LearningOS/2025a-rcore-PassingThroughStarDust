@@ -23,6 +23,20 @@ use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
 
 pub use context::TaskContext;
+// ** for chapter 4 exercises
+use crate::{
+    mm::VirtAddr,
+    syscall::{
+        SYSCALL_WRITE,
+        SYSCALL_EXIT,
+        SYSCALL_YIELD,
+        SYSCALL_GET_TIME,
+        SYSCALL_TRACE,
+        SYSCALL_MMAP,
+        SYSCALL_MUNMAP,
+        SYSCALL_SBRK
+    }
+};
 
 /// The task manager, where all the tasks are managed.
 ///
@@ -153,6 +167,100 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+
+    // ** for chapter 4 exercises
+    /// copy data from kernel space to user space
+    pub fn copy_to_user(&self, start_va: VirtAddr, len: usize, buf: &[u8]) {
+        let mut inner = self.inner.exclusive_access();
+        let current_task = inner.current_task;
+        let memory_set = &mut inner.tasks[current_task].memory_set;
+        memory_set.copy_to_user(start_va, len, buf);
+    }
+
+    // ** for chapter 4 exercises
+    /// read a byte from the given virtual address in the user space
+    pub fn read_byte_from_user(&self, va: VirtAddr) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let current_task = inner.current_task;
+        let memory_set = &mut inner.tasks[current_task].memory_set;
+        memory_set.read_byte_from_user(va)
+    }
+
+    // ** for chapter 4 exercises
+    /// write a given byte to the given virtual address in the user space 
+    pub fn write_byte_to_user(&self, va: VirtAddr, data: u8) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let current_task = inner.current_task;
+        let memory_set = &mut inner.tasks[current_task].memory_set;
+        memory_set.write_byte_to_user(va, data)
+    }
+
+    // ** for chapter 4 exercises
+    // get the index of a syscall in the syscall count manager
+    /* 
+        8 syscall types and their indexes: 
+            SYSCALL_WRITE       -       0
+            SYSCALL_EXIT        -       1
+            SYSCALL_YIELD       -       2
+            SYSCALL_GET_TIME    -       3
+            SYSCALL_TRACE       -       4
+            SYSCALL_MMAP        -       5
+            SYSCALL_MUNMAP      -       6
+            SYSCALL_SBRK        -       7
+    */
+    fn get_syscall_count_idx(syscall_id: usize) -> usize {
+        match syscall_id {
+            SYSCALL_WRITE => 0,
+            SYSCALL_EXIT => 1,
+            SYSCALL_YIELD => 2,
+            SYSCALL_GET_TIME => 3,
+            SYSCALL_TRACE => 4,
+            SYSCALL_MMAP => 5,
+            SYSCALL_MUNMAP => 6,
+            SYSCALL_SBRK => 7,
+            _ => panic!("Unsupported syscall_id: {}", syscall_id),
+        }
+    }
+
+    // ** for chapter 4 exercises
+    /// add 1 to the syscall count of given syscall id in the user space
+    pub fn add_syscall_count(&self, syscall_id: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let current_task = inner.current_task;
+        let task = &mut inner.tasks[current_task];
+        let idx = Self::get_syscall_count_idx(syscall_id);
+        task.syscall_counts[idx] += 1;
+    }
+
+    // ** for chapter 4 exercises
+    /// get the syscall count of given syscall id in the user space
+    pub fn get_syscall_count(&self, syscall_id: usize) -> usize {
+        let inner = self.inner.exclusive_access();
+        let current_task = inner.current_task;
+        let task = &inner.tasks[current_task];
+        let idx = Self::get_syscall_count_idx(syscall_id);
+        task.syscall_counts[idx]
+    }
+
+    // ** for chapter 4 exercises
+    /// map a range of memory in the user space
+    pub fn mmap_to_user(&self, start: VirtAddr, len: usize, port: usize) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let current_task = inner.current_task;
+        let task = &mut inner.tasks[current_task];
+        let memory_set = &mut task.memory_set;
+        memory_set.mmap_to_user(start, len, port)
+    }
+
+    // ** for chapter 4 exercises
+    /// unmap a range of memory in the user space
+    pub fn munmap_to_user(&self, start: VirtAddr, len: usize) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let current_task = inner.current_task;
+        let task = &mut inner.tasks[current_task];
+        let memory_set = &mut task.memory_set;
+        memory_set.munmap_to_user(start, len)
+    }
 }
 
 /// Run the first task in task list.
@@ -201,4 +309,46 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+
+// ** for chapter 4 exercises
+/// copy data from kernel space to the current user space
+pub fn copy_to_user(start_va: VirtAddr, len: usize, buf: &[u8]) {
+    TASK_MANAGER.copy_to_user(start_va, len, buf);
+}
+
+// ** for chapter 4 exercises
+/// read a byte from the given virtual address in the user space
+pub fn read_byte_from_user(va: VirtAddr) -> isize {
+    TASK_MANAGER.read_byte_from_user(va)
+}
+
+// ** for chapter 4 exercises
+/// write a given byte to the given virtual address in the user space 
+pub fn write_byte_to_user(va: VirtAddr, data: u8) -> isize {
+    TASK_MANAGER.write_byte_to_user(va, data)
+}
+
+// ** for chapter 4 exercises
+/// add 1 to the syscall count of given syscall id in the user space
+pub fn add_syscall_count(syscall_id: usize) {
+    TASK_MANAGER.add_syscall_count(syscall_id);
+}
+
+// ** for chapter 4 exercises
+/// get the syscall count of given syscall id in the user space
+pub fn get_syscall_count(syscall_id: usize) -> usize {
+    TASK_MANAGER.get_syscall_count(syscall_id)
+}
+
+// ** for chapter 4 exercises
+/// map a range of memory in the user space
+pub fn mmap_to_user(start: VirtAddr, len: usize, port: usize) -> isize {
+    TASK_MANAGER.mmap_to_user(start, len, port)
+}
+
+// ** for chapter 4 exercises
+/// unmap a range of memory in the user space
+pub fn munmap_to_user(start: VirtAddr, len: usize) -> isize {
+    TASK_MANAGER.munmap_to_user(start, len)
 }
